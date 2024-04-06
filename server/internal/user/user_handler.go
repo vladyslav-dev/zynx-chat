@@ -59,3 +59,12 @@ func (h *Handler) Logout(c *gin.Context) {
 	c.SetCookie("jwt", "", -1, "", "", false, true)
 	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
 }
+
+func (h *Handler) GetAllUsers(c *gin.Context) {
+	us, err := h.Service.GetAllUsers(c)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+	}
+
+	c.JSON(http.StatusOK, us)
+}
