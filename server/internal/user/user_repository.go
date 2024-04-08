@@ -44,3 +44,32 @@ func (r *repository) GetUserByEmail(ctx context.Context, email string) (*User, e
 
 	return &u, nil
 }
+
+func (r *repository) GetAllUsers(ctx context.Context) (*[]User, error) {
+	var us []User
+
+	query := "SELECT id, username, email, password FROM users"
+
+	rows, err := r.db.QueryContext(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var u User
+
+		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password); err != nil {
+			return nil, err
+		}
+
+		us = append(us, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &us, nil
+}

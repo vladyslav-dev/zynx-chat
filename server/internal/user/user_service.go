@@ -90,3 +90,12 @@ func (s *service) Login(c context.Context, req *LoginUserReq) (*LoginUserRes, er
 
 	return &LoginUserRes{accessToken: ss, Username: u.Username, ID: strconv.Itoa(int(u.ID))}, nil
 }
+
+func (s *service) GetAllUsers(c context.Context) (*[]User, error) {
+	r, err := s.Repository.GetAllUsers(c)
+	if err != nil {
+		return r, err
+	}
+
+	return r, nil
+}
