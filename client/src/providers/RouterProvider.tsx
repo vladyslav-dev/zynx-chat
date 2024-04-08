@@ -4,7 +4,7 @@ import Registrer from '../pages/Register';
 import { createBrowserRouter, RouterProvider as BaseRouterProvider } from 'react-router-dom';
 
 
-const router = createBrowserRouter([
+export const router = createBrowserRouter([
     {
         path: '/login',
         element: <Login />

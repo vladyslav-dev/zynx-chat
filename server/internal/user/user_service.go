@@ -88,7 +88,7 @@ func (s *service) Login(c context.Context, req *LoginUserReq) (*LoginUserRes, er
 		return &LoginUserRes{}, err
 	}
 
-	return &LoginUserRes{accessToken: ss, Username: u.Username, ID: strconv.Itoa(int(u.ID))}, nil
+	return &LoginUserRes{accessToken: ss, Username: u.Username, Email: u.Email, ID: strconv.Itoa(int(u.ID))}, nil
 }
 
 func (s *service) GetAllUsers(c context.Context) (*[]User, error) {

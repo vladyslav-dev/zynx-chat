@@ -10,17 +10,16 @@ const RegisterForm = () => {
         e.preventDefault()
 
         const formData = new FormData(e.target as HTMLFormElement);
-
-        const username = formData.get('username') as string
-        const email = formData.get('email') as string
-        const password = formData.get('password') as string
+        const { username, email, password } = Object.fromEntries(formData.entries())
 
         const response = await registerUser({ username, email, password })
 
-        if (response?.ok) {
-            const response = await loginUser({ email, password });
+        if ("id" in response) {
+            localStorage.setItem("user", JSON.stringify(response))
 
-            if (response?.ok) {
+            const loginResponse = await loginUser({ email, password });
+
+            if (loginResponse?.ok) {
                 navigate("/dashboard")
             } else {
                 setError("Error occured while logging in")
@@ -36,15 +35,15 @@ const RegisterForm = () => {
             <form onSubmit={onSubmit}>
                 <div>
                     <label htmlFor="username">Username</label>
-                    <input type="username" id="username" />
+                    <input type="username" id="username" name="username" />
                 </div>
                 <div>
                     <label htmlFor="email">Email</label>
-                    <input type="email" id="email" />
+                    <input type="email" id="email" name="email" />
                 </div>
                 <div>
                     <label htmlFor="password">Password</label>
-                    <input type="password" id="password" />
+                    <input type="password" id="password" name="password" />
                 </div>
                 <button type="submit">Create account</button>
             </form>

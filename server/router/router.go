@@ -30,9 +30,9 @@ func InitRouter(userHandler *user.Handler, wsHandler *ws.Handler) {
 
 	r.Use(CORSMiddleware())
 
-	r.POST("/register", userHandler.CreateUser)
-	r.POST("/login", userHandler.Login)
-	r.GET("/logout", userHandler.Logout)
+	r.POST("api/register", userHandler.CreateUser)
+	r.POST("api/login", userHandler.Login)
+	r.GET("api/logout", userHandler.Logout)
 	r.GET("/dev/getAllUsers", userHandler.GetAllUsers)
 
 	r.POST("/ws/createRoom", wsHandler.CreateRoom)

@@ -30,6 +30,7 @@ type LoginUserRes struct {
 	accessToken string
 	ID          string `json:"id" bson:"id"`
 	Username    string `json:"username" bson:"username"`
+	Email       string `json:"email" bson:"email"`
 }
 
 type Repository interface {

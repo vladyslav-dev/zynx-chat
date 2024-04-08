@@ -50,6 +50,7 @@ func (h *Handler) Login(c *gin.Context) {
 	res := &LoginUserRes{
 		ID:       u.ID,
 		Username: u.Username,
+		Email:    u.Email,
 	}
 
 	c.JSON(http.StatusOK, res)

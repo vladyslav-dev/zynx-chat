@@ -1,5 +1,7 @@
 import { IUser } from "../types/User";
 import { createContext, useEffect, useState } from "react";
+import { router } from "./RouterProvider";
+
 
 interface IAuthContext {
     isAuthenticated: boolean;
@@ -20,7 +22,19 @@ export const AuthContextProvider = ({ children }: { children: React.ReactNode}) 
     const [user, setUser] = useState<IUser | null>(null)
 
     useEffect(() => {
+        const user = localStorage.getItem('user')
 
+        if (user) {
+            setUser(JSON.parse(user))
+            setIsAuthenticated(true)
+
+            router.navigate('/dashboard')
+        } else {
+            setUser(null)
+            setIsAuthenticated(false)
+
+            router.navigate('/login')
+        }
 
     }, [isAuthenticated])
 
