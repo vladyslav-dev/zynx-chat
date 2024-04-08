@@ -1,7 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './app/styles/global.css';
-import App from './app/App';
+import AuthContextProvider from './providers/AuthProvider';
+import RouterProvider from './providers/RouterProvider';
+import WebsocketProvider from './providers/WebsocketProvider';
 
 
 const root = ReactDOM.createRoot(
@@ -9,6 +11,10 @@ const root = ReactDOM.createRoot(
 );
 root.render(
   <React.StrictMode>
-    <App />
+    <AuthContextProvider>
+      <WebsocketProvider>
+        <RouterProvider />
+      </WebsocketProvider>
+    </AuthContextProvider>
   </React.StrictMode>
 );
