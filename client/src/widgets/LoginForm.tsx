@@ -15,9 +15,10 @@ const LoginForm = () => {
         const password = formData.get('password') as string
 
         const response = await loginUser({ email, password })
+        console.log('response', response)
 
         if ("id" in response) {
-            navigate("/dashboard")
+            navigate("/joinRoom")
 
             localStorage.setItem("user", JSON.stringify(response))
         } else {

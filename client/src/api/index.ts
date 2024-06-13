@@ -2,7 +2,7 @@ import { API_URL } from "../constants"
 
 export const registerUser = async (data: any) => {
     try {
-        const response = await fetch(`${API_URL}/register`, {
+        const response = await fetch(`${API_URL}/api/register`, {
             headers: {
                 'Content-Type': 'application/json'
             },
@@ -21,12 +21,13 @@ export const registerUser = async (data: any) => {
 
 export const loginUser = async (data: any) => {
     try {
-        const response = await fetch(`${API_URL}/login`, {
+        const response = await fetch(`${API_URL}/api/login`, {
             headers: {
                 'Content-Type': 'application/json'
             },
             method: 'POST',
-            body: JSON.stringify(data)
+            body: JSON.stringify(data),
+            credentials: 'include'
         })
 
         const responseData = await response.json()

@@ -75,7 +75,15 @@
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply bg-[#000] text-white;
     font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  button {
+    @apply bg-[#283aae] p-2
+  }
+
+  input, textarea {
+    @apply text-black
   }
 }

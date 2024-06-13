@@ -5,7 +5,7 @@ interface IWebsocketContext {
     setWebsocketConnection: (websocketConnection: WebSocket) => void;
 }
 
-const WebsocketContext = createContext<IWebsocketContext>({
+export const WebsocketContext = createContext<IWebsocketContext>({
     websocketConnection: null,
     setWebsocketConnection: (websocketConnection: WebSocket) => {}
 })

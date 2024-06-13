@@ -10,7 +10,7 @@ interface IAuthContext {
     setUser: (user: IUser) => void;
 }
 
-const AuthContext = createContext<IAuthContext>({
+export const AuthContext = createContext<IAuthContext>({
     isAuthenticated: false,
     setIsAuthenticated: (isAuthenticated: boolean) => {},
     user: null,
@@ -24,16 +24,21 @@ export const AuthContextProvider = ({ children }: { children: React.ReactNode}) 
     useEffect(() => {
         const user = localStorage.getItem('user')
 
+        console.log('Current auth user', user)
+
         if (user) {
             setUser(JSON.parse(user))
             setIsAuthenticated(true)
 
-            router.navigate('/dashboard')
+            router.navigate('/joinRoom')
         } else {
+
             setUser(null)
             setIsAuthenticated(false)
 
-            router.navigate('/login')
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/register') {
+                router.navigate('/login')
+            }
         }
 
     }, [isAuthenticated])

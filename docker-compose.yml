@@ -2,15 +2,15 @@ version: '3.8'
 
 services:
   postgres:
-    image: postgres:latest
-    container_name: whisper-warp-postres
+    image: postgres:15-alpine
+    container_name: whisper-warp-postgres
     restart: unless-stopped
+    user: postgres
     environment:
-      POSTGRES_USER: A
-      POSTGRES_PASSWORD: A
-      POSTGRES_DB: A
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: admin
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
@@ -25,14 +25,14 @@ services:
     ports:
       - "8080:8080"
 
-  react:
-    build:
-      context: ./client
-      dockerfile: Dockerfile
-    container_name: whisper-warp-react
-    restart: unless-stopped
-    ports:
-      - "3000:3000"
+  # react:
+  #   build:
+  #     context: ./client
+  #     dockerfile: Dockerfile
+  #   container_name: whisper-warp-react
+  #   restart: unless-stopped
+  #   ports:
+  #     - "3000:3000"
 
 volumes:
   postgres_data:

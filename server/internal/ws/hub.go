@@ -1,5 +1,7 @@
 package ws
 
+import "fmt"
+
 type Room struct {
 	ID      string             `json:"id" bson:"id"`
 	Name    string             `json:"name" bson:"name"`
@@ -24,6 +26,7 @@ func NewHub() *Hub {
 
 func (h *Hub) Run() {
 	for {
+		fmt.Println("Hub run")
 		select {
 		case cl := <-h.Register:
 			if _, ok := h.Rooms[cl.RoomID]; ok {
