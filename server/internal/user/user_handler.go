@@ -45,7 +45,7 @@ func (h *Handler) Login(c *gin.Context) {
 		return
 	}
 
-	c.SetCookie("jwt", u.accessToken, 3600, "/", "192.168.0.104", false, true)
+	c.SetCookie("jwt", u.accessToken, 3600, "/", "localhost", false, true)
 
 	res := &LoginUserRes{
 		ID:       u.ID,

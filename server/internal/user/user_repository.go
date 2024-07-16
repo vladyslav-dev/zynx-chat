@@ -2,22 +2,15 @@ package user
 
 import (
 	"context"
-	"database/sql"
 	"log"
+	"server/db"
 )
 
-type DBTX interface {
-	// ExecContext(ctx context.Context, query string, args ...interface{} (sql.Result, error))
-	PrepareContext(context.Context, string) (*sql.Stmt, error)
-	QueryContext(context.Context, string, ...interface{}) (*sql.Rows, error)
-	QueryRowContext(context.Context, string, ...interface{}) *sql.Row
-}
-
 type repository struct {
-	db DBTX
+	db db.DBTX
 }
 
-func NewRepository(db DBTX) Repository {
+func NewRepository(db db.DBTX) Repository {
 	return &repository{db: db}
 }
 
@@ -78,4 +71,11 @@ func (r *repository) GetAllUsers(ctx context.Context) (*[]User, error) {
 	}
 
 	return &us, nil
+}
+
+func (r *repository) UserExists(ctx context.Context, userID int) (bool, error) {
+	var exists bool
+	query := "SELECT EXISTS (SELECT 1 FROM users WHERE id = $1)"
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(&exists)
+	return exists, err
 }

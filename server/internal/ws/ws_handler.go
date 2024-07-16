@@ -1,126 +1,67 @@
 package ws
 
 import (
-	"net/http"
+	"fmt"
+	"log"
+	"server/internal/message"
+	"sort"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 type Handler struct {
 	hub *Hub
 }
 
-func NewHandler(h *Hub) *Handler {
+func NewHandler(hub *Hub) *Handler {
 	return &Handler{
-		hub: h,
+		hub: hub,
 	}
 }
 
-type CreateRoomReq struct {
-	ID   string `json:"id"`
-	Name string `json"name"`
-}
-
-func (h *Handler) CreateRoom(c *gin.Context) {
-	var req CreateRoomReq
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
-		return
+func GetChannelID(t, senderID, recipientID, groupID *string) string {
+	if *t == "group" {
+		return "group-" + *groupID
 	}
+	// Sort the IDs to ensure a consistent channel ID regardless of the order
+	ids := []string{*senderID, *recipientID}
+	sort.Strings(ids)
 
-	h.hub.Rooms[req.ID] = &Room{
-		ID:      req.ID,
-		Name:    req.Name,
-		Clients: make(map[string]*Client),
-	}
+	log.Printf("Params: t=%s, senderID=%s, recipientID=%s", *t, *senderID, *recipientID)
+	log.Printf("IDs: senderID=%s, recipientID=%s", ids[0], ids[1])
 
-	c.JSON(http.StatusOK, req)
+	return "private-" + ids[0] + "-" + ids[1]
 }
 
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	CheckOrigin: func(r *http.Request) bool {
-		origin := r.Header.Get("Origin")
-		return origin == "http://192.168.0.104:3000"
-	},
-}
-
-func (h *Handler) JoinRoom(c *gin.Context) {
+func (h *Handler) ServeWs(c *gin.Context, messageService message.Service) {
 	conn, err := upgrader.Upgrade(c.Writer, c.Request, nil)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		log.Printf("Failed to upgrade connection %v", err)
 		return
 	}
 
-	roomID := c.Param("roomId")
-	clientID := c.Query("clientId")
-	username := c.Query("username")
-
-	cl := &Client{
-		Conn:     conn,
-		Message:  make(chan *Message, 10),
-		ID:       clientID,
-		RoomID:   roomID,
-		Username: username,
+	client := &Client{
+		hub:            h.hub,
+		conn:           conn,
+		send:           make(chan []byte, 256),
+		messageService: &messageService,
+		channels:       make(map[string]bool),
 	}
 
-	m := &Message{
-		Content:  "A new user has joined the room",
-		RoomID:   roomID,
-		Username: username,
-	}
+	client.hub.register <- client
 
-	// Register a new client through the register channel
-	h.hub.Register <- cl
+	t := c.Query("type")
+	senderID := c.Query("sender_id")
+	recipientID := c.Query("recipient_id")
+	groupID := c.Query("group_id")
 
-	// Broadcast that message
-	h.hub.Broadcast <- m
+	log.Printf("Query Params 57: type=%s, sender_id=%s, recipient_id=%s", t, senderID, recipientID)
+	channelID := GetChannelID(&t, &senderID, &recipientID, &groupID)
 
-	go cl.writeMessage()
-	cl.readMessage(h.hub)
-}
+	fmt.Println(channelID)
 
-type RoomRes struct {
-	ID   string `json:"id"`
-	Name string `json:"name"`
-}
+	h.hub.AddClientToChannel(client, channelID)
 
-func (h *Handler) GetRooms(c *gin.Context) {
-	rooms := make([]RoomRes, 0)
-
-	for _, r := range h.hub.Rooms {
-		rooms = append(rooms, RoomRes{
-			ID:   r.ID,
-			Name: r.Name,
-		})
-	}
-
-	c.JSON(http.StatusOK, rooms)
-}
-
-type ClientRes struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-}
-
-func (h *Handler) GetClients(c *gin.Context) {
-	var clients []ClientRes
-	roomId := c.Param("roomId")
-
-	if _, ok := h.hub.Rooms[roomId]; !ok {
-		clients = make([]ClientRes, 0)
-
-		c.JSON(http.StatusOK, clients)
-	}
-
-	for _, c := range h.hub.Rooms[roomId].Clients {
-		clients = append(clients, ClientRes{
-			ID:       c.ID,
-			Username: c.Username,
-		})
-	}
-
-	c.JSON(http.StatusOK, clients)
+	go client.writePump()
+	go client.readPump()
 }

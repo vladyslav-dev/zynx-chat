@@ -18,7 +18,7 @@ const LoginForm = () => {
         console.log('response', response)
 
         if ("id" in response) {
-            navigate("/joinRoom")
+            navigate("/dashboard")
 
             localStorage.setItem("user", JSON.stringify(response))
         } else {
@@ -31,7 +31,7 @@ const LoginForm = () => {
             <h1>Login</h1>
             <form onSubmit={onSubmit}>
                 <div>
-                    <label htmlFor="email">Email</label>
+                    <label htmlFor="email">email</label>
                     <input type="email" id="email" name="email" />
                 </div>
                 <div>

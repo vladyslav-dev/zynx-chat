@@ -49,7 +49,7 @@ function Room() {
 
     useEffect(() => {
         if (websocketConnection === null) {
-            router.navigate('/joinRoom')
+            router.navigate('/dashboard')
             return;
         }
 
@@ -58,7 +58,7 @@ function Room() {
 
     useEffect(() => {
         if (websocketConnection === null) {
-            router.navigate('/joinRoom')
+            router.navigate('/dashboard')
             return;
         }
 
@@ -100,7 +100,7 @@ function Room() {
         }
 
         if (websocketConnection === null) {
-            router.navigate('/joinRoom')
+            router.navigate('/dashboard')
             return;
         }
 

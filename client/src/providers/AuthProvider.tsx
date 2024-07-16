@@ -30,7 +30,7 @@ export const AuthContextProvider = ({ children }: { children: React.ReactNode}) 
             setUser(JSON.parse(user))
             setIsAuthenticated(true)
 
-            router.navigate('/joinRoom')
+            router.navigate('/dashboard')
         } else {
 
             setUser(null)

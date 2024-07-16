@@ -20,7 +20,7 @@ const RegisterForm = () => {
             const loginResponse = await loginUser({ email, password });
 
             if (loginResponse?.ok) {
-                navigate("/joinRoom")
+                navigate("/dashboard")
             } else {
                 setError("Error occured while logging in")
             }

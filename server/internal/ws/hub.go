@@ -1,62 +1,113 @@
 package ws
 
-import "fmt"
-
-type Room struct {
-	ID      string             `json:"id" bson:"id"`
-	Name    string             `json:"name" bson:"name"`
-	Clients map[string]*Client `json:"clients"`
-}
+import (
+	"fmt"
+	"sync"
+)
 
 type Hub struct {
-	Rooms      map[string]*Room
-	Register   chan *Client
-	Unregister chan *Client
-	Broadcast  chan *Message
+	clients    map[*Client]bool
+	broadcast  chan BroadcastMessage
+	register   chan *Client
+	unregister chan *Client
+	channels   map[string]map[*Client]bool // channelID as key
+	mu         sync.RWMutex
+}
+
+type BroadcastMessage struct {
+	Message   []byte
+	ChannelID string
 }
 
 func NewHub() *Hub {
 	return &Hub{
-		Rooms:      make(map[string]*Room),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		Broadcast:  make(chan *Message, 5),
+		clients:    make(map[*Client]bool),
+		broadcast:  make(chan BroadcastMessage),
+		register:   make(chan *Client),
+		unregister: make(chan *Client),
+		channels:   make(map[string]map[*Client]bool),
 	}
 }
 
 func (h *Hub) Run() {
 	for {
-		fmt.Println("Hub run")
 		select {
-		case cl := <-h.Register:
-			if _, ok := h.Rooms[cl.RoomID]; ok {
-				r := h.Rooms[cl.RoomID]
-
-				if _, ok := r.Clients[cl.ID]; !ok {
-					r.Clients[cl.ID] = cl
-				}
+		case client := <-h.register:
+			h.mu.Lock()
+			h.clients[client] = true
+			h.mu.Unlock()
+		case client := <-h.unregister:
+			h.mu.Lock()
+			if _, ok := h.clients[client]; ok {
+				delete(h.clients, client)
+				close(client.send)
 			}
-		case cl := <-h.Unregister:
-			if _, ok := h.Rooms[cl.RoomID]; ok {
-				if _, ok := h.Rooms[cl.RoomID].Clients[cl.ID]; ok {
-					if len(h.Rooms[cl.RoomID].Clients) != 0 {
-						h.Broadcast <- &Message{
-							Content:  "User left the chat (Hub.Unregister case)",
-							RoomID:   cl.RoomID,
-							Username: cl.Username,
-						}
-					}
 
-					delete(h.Rooms[cl.RoomID].Clients, cl.ID)
-					close(cl.Message)
-				}
-			}
-		case m := <-h.Broadcast:
-			if _, ok := h.Rooms[m.RoomID]; ok {
-				for _, cl := range h.Rooms[m.RoomID].Clients {
-					cl.Message <- m
+			h.RemoveFromAllChannels(client)
+			h.mu.Unlock()
+		case broadcastMessage := <-h.broadcast:
+			h.mu.Lock()
+
+			logs := fmt.Sprintf("Existing channels: %v\nIncoming ChannelID: %s\nClients in Channel: %v", h.channels, broadcastMessage.ChannelID, h.channels[broadcastMessage.ChannelID])
+			fmt.Println(logs)
+
+			clients := h.channels[broadcastMessage.ChannelID]
+			h.mu.Unlock()
+			for client := range clients {
+				select {
+				case client.send <- broadcastMessage.Message:
+				default:
+					close(client.send)
+					delete(h.clients, client)
 				}
 			}
 		}
 	}
+}
+
+func (h *Hub) RemoveFromAllChannels(client *Client) {
+	for channelID := range client.channels {
+		if clients, ok := h.channels[channelID]; ok {
+			delete(clients, client)
+		}
+	}
+}
+
+// func (h *Hub) RouteMessage(broadcastMessage BroadcastMessage) {
+// 	if clients, ok := h.channels[broadcastMessage.ChannelID]; ok {d
+// 		for client := range clients {
+// 			select {
+// 			case client.send <- broadcastMessage.Message:
+// 			default:
+// 				close(client.send)
+// 				delete(h.clients, client)
+
+// 			}
+// 		}
+// 	}
+// }
+
+func (h *Hub) AddClientToChannel(client *Client, channelID string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	// Ensure the channels map is initialized
+	if h.channels == nil {
+		h.channels = make(map[string]map[*Client]bool)
+	}
+
+	// Initialize the map for the specific channel if it doesn't exist
+	if h.channels[channelID] == nil {
+		h.channels[channelID] = make(map[*Client]bool)
+	}
+
+	// Add the client to the channel
+	h.channels[channelID][client] = true
+
+	// Optionally, you might want to maintain a reverse mapping
+	client.channels[channelID] = true
+}
+
+func (h *Hub) BroadcastMessage(message BroadcastMessage) {
+	h.broadcast <- message
 }

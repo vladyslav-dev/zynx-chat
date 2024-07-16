@@ -1,48 +1,32 @@
 package router
 
 import (
+	"server/internal/group"
+	"server/internal/message"
 	"server/internal/user"
 	"server/internal/ws"
 
 	"github.com/gin-gonic/gin"
 )
 
-var r *gin.Engine
-
-func CORSMiddleware() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		c.Writer.Header().Set("Access-Control-Allow-Origin", "http://192.168.0.104:3000")
-		c.Writer.Header().Set("Access-Control-Allow-Credentials", "true")
-		c.Writer.Header().Set("Access-Control-Allow-Headers", "Content-Type, Content-Length, Accept-Encoding, X-CSRF-Token, Authorization, accept, origin, Cache-Control, X-Requested-With")
-		c.Writer.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS, GET, PUT")
-
-		if c.Request.Method == "OPTIONS" {
-			c.AbortWithStatus(204)
-			return
-		}
-
-		c.Next()
-	}
-}
-
-func InitRouter(userHandler *user.Handler, wsHandler *ws.Handler) {
-	r = gin.Default()
-
-	r.Use(CORSMiddleware())
-
-	r.GET("/api/check-auth", authMiddleware, checkAuthHandler)
-
+func RegisterUserRoutes(r *gin.Engine, userHandler *user.Handler) {
 	r.POST("api/register", userHandler.CreateUser)
 	r.POST("api/login", userHandler.Login)
 	r.GET("api/logout", userHandler.Logout)
-	r.GET("/dev/getAllUsers", userHandler.GetAllUsers)
-
-	r.POST("/ws/createRoom", wsHandler.CreateRoom)
-	r.GET("/ws/getRooms", wsHandler.GetRooms)
-	r.GET("/ws/joinRoom/:roomId", wsHandler.JoinRoom)
-	r.GET("/ws/getClients/:roomId", wsHandler.GetClients)
+	r.GET("api/getAllUsers", userHandler.GetAllUsers)
 }
 
-func Start(addr string) error {
-	return r.Run(addr)
+func RegisterGroupRoutes(r *gin.Engine, groupHandler *group.Handler) {
+	r.POST("api/createGroup", groupHandler.CreateGroup)
+	r.GET("api/getAllGroups", groupHandler.GetAllGroups)
+	r.POST("api/joinGroup", groupHandler.JoinGroup)
+	// r.POST("api/joinGroup")
+}
+
+func RegisterWs(r *gin.Engine, wsHandler *ws.Handler, messageHandler *message.Handler, messageService message.Service) {
+	r.POST("api/private-message", messageHandler.GetPrivateMessages)
+	r.POST("api/group-message", messageHandler.GetGroupMessages)
+	r.GET("/ws/message", func(c *gin.Context) {
+		wsHandler.ServeWs(c, messageService)
+	})
 }
