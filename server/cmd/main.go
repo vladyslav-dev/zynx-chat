@@ -46,6 +46,7 @@ func main() {
 	r.Use(middlewares.CORSMiddleware())
 
 	// Register routes
+	r.Group("/api")
 	router.RegisterUserRoutes(r, userHandler)
 	router.RegisterGroupRoutes(r, groupHandler)
 	router.RegisterWs(r, wsHandler, messageHandler, messageSvc)

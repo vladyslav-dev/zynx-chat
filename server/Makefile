@@ -11,9 +11,9 @@ dropdb:
 	docker exec -it whisper-warp-postgres-local dropdb whisper-warp-db
 
 migrateup:
-	migrate -path db/migrations -database "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable" -verbose up
+	migrate -path db/new_migrations -database "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable" -verbose up
 
 migratedown:
-	migrate -path db/migrations -database "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable" -verbose down
+	migrate -path db/new_migrations -database "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable" -verbose down
 
 .PHONY: postgresinit postres createdb dropdb migrateup migratedown
