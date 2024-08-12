@@ -2,11 +2,10 @@ package user
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"server/util"
-	"strconv"
 	"time"
-
-	"github.com/golang-jwt/jwt/v4"
 )
 
 type service struct {
@@ -21,7 +20,7 @@ func NewService(repository Repository) Service {
 	}
 }
 
-func (s *service) CreateUser(c context.Context, req *CreateUserReq) (*CreateUserRes, error) {
+func (s *service) Register(c context.Context, req *CreateUserReq) (*BaseUserResponse, error) {
 	ctx, cancel := context.WithTimeout(c, s.timeout)
 	defer cancel()
 
@@ -32,7 +31,7 @@ func (s *service) CreateUser(c context.Context, req *CreateUserReq) (*CreateUser
 
 	u := &User{
 		Username: req.Username,
-		Email:    req.Email,
+		Phone:    req.Phone,
 		Password: hashedPassword,
 	}
 
@@ -41,52 +40,164 @@ func (s *service) CreateUser(c context.Context, req *CreateUserReq) (*CreateUser
 		return nil, err
 	}
 
-	res := &CreateUserRes{
-		ID:       strconv.Itoa(int(r.ID)),
+	res := &BaseUserResponse{
+		ID:       int(r.ID),
 		Username: r.Username,
-		Email:    r.Email,
+		Phone:    r.Phone,
 	}
 
 	return res, nil
 }
 
-type MyJWTClaims struct {
-	ID       string `json:"id" bson:"id"`
-	Username string `json:"username" bson:"username"`
-	jwt.RegisteredClaims
-}
-
-const (
-	secretKey = "sercret-key"
-)
-
-func (s *service) Login(c context.Context, req *LoginUserReq) (*LoginUserRes, error) {
+func (s *service) Login(c context.Context, userInfo *UserInfo) (*UserResponseWithTokens, error) {
 	ctx, cancel := context.WithTimeout(c, s.timeout)
 	defer cancel()
 
-	u, err := s.GetUserByEmail(ctx, req.Email)
+	u, err := s.GetUserByPhone(ctx, userInfo.Phone)
 	if err != nil {
-		return &LoginUserRes{}, err
+		return &UserResponseWithTokens{}, errors.New("invalid phone number")
 	}
 
-	err = util.CheckPassword(req.Password, u.Password)
+	err = util.CheckPassword(userInfo.Password, u.Password)
 	if err != nil {
-		return &LoginUserRes{}, err
+		return &UserResponseWithTokens{}, err
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, MyJWTClaims{
-		ID:       strconv.Itoa(int(u.ID)),
+	tokens, err := GenerateTokens(JWTUser{
+		ID:       u.ID,
 		Username: u.Username,
-		RegisteredClaims: jwt.RegisteredClaims{
-			Issuer:    strconv.Itoa(int(u.ID)),
-			ExpiresAt: jwt.NewNumericDate(time.Now().Add(21 * time.Hour)),
-		},
+		Phone:    u.Phone,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	_, err = s.Repository.CreateSession(ctx, SessionReq{
+		UserID:       u.ID,
+		RefreshToken: string(tokens.RefreshToken),
+		UserAgent:    userInfo.UserAgent,
+		IPAddress:    userInfo.IPAddress,
 	})
 
-	ss, err := token.SignedString([]byte(secretKey))
 	if err != nil {
-		return &LoginUserRes{}, err
+		return nil, err
 	}
 
-	return &LoginUserRes{accessToken: ss, Username: u.Username, ID: strconv.Itoa(int(u.ID))}, nil
+	return &UserResponseWithTokens{
+		BaseUserResponse: BaseUserResponse{
+			ID:       int(u.ID),
+			Username: u.Username,
+			Phone:    u.Phone,
+		},
+		AccessToken:  string(tokens.AccessToken),
+		RefreshToken: string(tokens.RefreshToken),
+	}, nil
+}
+
+func (s *service) Logout(c context.Context, token RefreshToken) error {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	err := s.Repository.DeleteSession(ctx, token)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *service) isSessionExist(c context.Context, token RefreshToken) bool {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	_, err := s.Repository.GetSession(ctx, token)
+	return err == nil
+}
+
+func (s *service) ValidateSession(c context.Context, token RefreshToken) (*UserResponseWithTokens, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	baseUserResponse, _ := ValidateRefreshToken(token)
+
+	session, _ := s.Repository.GetSession(ctx, token)
+
+	if (baseUserResponse == nil) || (session == nil) {
+		return nil, errors.New("Unauthorized")
+	}
+
+	user, err := s.Repository.GetUserByID(ctx, int(session.UserID))
+	if err != nil {
+		return nil, err
+	}
+
+	tokens, err := GenerateTokens(JWTUser{
+		ID:       user.ID,
+		Username: user.Username,
+		Phone:    user.Phone,
+	})
+
+	if err != nil {
+		fmt.Println("Error generating tokens")
+		return nil, err
+	}
+
+	sessionReq := SessionReq{
+		UserID:       session.UserID,
+		RefreshToken: session.RefreshToken,
+		UserAgent:    session.UserAgent,
+		IPAddress:    session.IPAddress,
+	}
+
+	_, err = s.Repository.UpdateSession(ctx, sessionReq, RefreshToken(tokens.RefreshToken))
+	if err != nil {
+		fmt.Println("Error updating session")
+		return nil, err
+	}
+
+	return &UserResponseWithTokens{
+		BaseUserResponse: BaseUserResponse{
+			ID:       int(user.ID),
+			Username: user.Username,
+			Phone:    user.Phone,
+		},
+		AccessToken:  string(tokens.AccessToken),
+		RefreshToken: string(tokens.RefreshToken),
+	}, nil
+}
+
+func (s *service) GetAllUsers(c context.Context) (*[]BaseUserResponse, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	r, err := s.Repository.GetAllUsers(ctx)
+	if err != nil {
+		return r, err
+	}
+
+	return r, nil
+}
+
+func (s *service) GetUsersByIDs(c context.Context, usersIDs []int) (*[]BaseUserResponse, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	us, err := s.Repository.GetUsersByIDs(ctx, usersIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, err
+}
+
+func (s *service) GetUsersByGroupID(c context.Context, groupID int) (*[]BaseUserResponse, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	us, err := s.Repository.GetUsersByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, err
 }
