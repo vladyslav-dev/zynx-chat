@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"os"
 	"server/db"
 	"server/internal/group"
 	"server/internal/message"
@@ -45,6 +46,12 @@ func main() {
 	r := gin.Default()
 	r.Use(middlewares.CORSMiddleware())
 
+	r.GET("/", func(c *gin.Context) {
+		c.JSON(200, gin.H{
+			"message": "The server is running",
+		})
+	})
+
 	// Register routes
 	router.RegisterUserRoutes(r, userHandler)
 	router.RegisterGroupRoutes(r, groupHandler)
@@ -57,5 +64,10 @@ func main() {
 	// wsHandler := ws.NewHandler(hub)
 	// go hub.Run()
 
-	r.Run("whisper-warp-production.up.railway.app:80")
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
+
+	r.Run("0.0.0.0:" + port)
 }
