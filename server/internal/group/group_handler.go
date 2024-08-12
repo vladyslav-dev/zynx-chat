@@ -2,6 +2,7 @@ package group
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/gin-gonic/gin"
 )
@@ -30,6 +31,28 @@ func (h *Handler) CreateGroup(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, res)
+}
+
+func (h *Handler) GetGroupByID(c *gin.Context) {
+	groupID := c.Query("id")
+	if groupID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"Error": "Missing required query parameter id"})
+		return
+	}
+
+	id, err := strconv.Atoi(groupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"Error": "id is not a number"})
+		return
+	}
+
+	g, err := h.Service.GetGroupById(c, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, g)
 }
 
 func (h *Handler) GetAllGroups(c *gin.Context) {

@@ -4,13 +4,13 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"log"
 	"net/http"
 	"strconv"
 	"time"
 
 	"server/internal/message"
+	m "server/internal/message"
 
 	"github.com/gorilla/websocket"
 )
@@ -33,8 +33,8 @@ var upgrader = websocket.Upgrader{
 type Client struct {
 	hub            *Hub
 	conn           *websocket.Conn
-	send           chan []byte
-	messageService *message.Service
+	send           chan *m.MessageWrapper
+	messageService *m.Service
 	channels       map[string]bool // channelID as key, can be group or private
 }
 
@@ -52,7 +52,7 @@ func (c *Client) readPump() {
 	})
 
 	for {
-		_, m, err := c.conn.ReadMessage()
+		_, mes, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
 				log.Printf("error: %v", err)
@@ -60,12 +60,10 @@ func (c *Client) readPump() {
 			break
 		}
 
-		fmt.Printf("msg %d", m)
+		mes = bytes.TrimSpace(mes)
 
-		m = bytes.TrimSpace(m)
-
-		var msg message.SendMessageReq
-		if err := json.Unmarshal(m, &msg); err != nil {
+		var msg m.SendMessageReq
+		if err := json.Unmarshal(mes, &msg); err != nil {
 			log.Printf("Invalid message format: %v", err)
 
 			if e, ok := err.(*json.SyntaxError); ok {
@@ -88,7 +86,6 @@ func (c *Client) writePump() {
 	for {
 		select {
 		case message, ok := <-c.send:
-			fmt.Println("message: ", message)
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
@@ -98,12 +95,23 @@ func (c *Client) writePump() {
 			if err != nil {
 				return
 			}
-			w.Write(message)
+			jsonMessage, err := m.MarshalMessageJSON(message)
+			if err != nil {
+				log.Printf("Error marshalling message: %v", err)
+				return
+			}
+			w.Write(jsonMessage)
 
 			n := len(c.send)
 
 			for i := 0; i < n; i++ {
-				w.Write(<-c.send)
+				jsonMessage, err := m.MarshalMessageJSON(<-c.send)
+				if err != nil {
+					log.Printf("Error marshalling message: %v", err)
+					return
+				}
+
+				w.Write(jsonMessage)
 			}
 
 			if err := w.Close(); err != nil {
@@ -122,14 +130,14 @@ func (c *Client) handleMessage(msg message.SendMessageReq) {
 	ctx := context.Background()
 
 	if msg.Type == "group" {
-		sendMessageReq := &message.SendMessageReq{
+		sendMessageReq := &m.SendMessageReq{
 			Type:     msg.Type,
 			SenderID: msg.SenderID,
 			GroupID:  msg.GroupID,
 			Content:  msg.Content,
 		}
 
-		res, err := (*c.messageService).SendMessage(ctx, sendMessageReq)
+		insertedMessage, err := (*c.messageService).SendMessage(ctx, sendMessageReq)
 		if err != nil {
 			log.Printf("Error saving message to the database: %v", err)
 			return
@@ -138,38 +146,48 @@ func (c *Client) handleMessage(msg message.SendMessageReq) {
 		strGroupID := strconv.Itoa(msg.GroupID)
 
 		channelID := GetChannelID(&msg.Type, nil, nil, &strGroupID) // Get the correct channel ID based on the message
-
 		c.hub.BroadcastMessage(BroadcastMessage{
-			Message:   []byte(res.Content),
+			Message: &m.MessageWrapper{
+				GroupMsg: &m.GroupMessageRes{
+					ID:        insertedMessage.ID,
+					Type:      insertedMessage.Type,
+					SenderID:  insertedMessage.SenderID,
+					GroupID:   *insertedMessage.GroupID,
+					Content:   insertedMessage.Content,
+					CreatedAt: insertedMessage.CreatedAt,
+				},
+			},
 			ChannelID: channelID,
 		})
 	} else if msg.Type == "private" {
-		sendMessageReq := &message.SendMessageReq{
+		sendMessageReq := &m.SendMessageReq{
 			Type:        msg.Type,
 			SenderID:    msg.SenderID,
 			RecipientID: msg.RecipientID,
 			Content:     msg.Content,
 		}
 
-		res, err := (*c.messageService).SendMessage(ctx, sendMessageReq)
+		insertedMessage, err := (*c.messageService).SendMessage(ctx, sendMessageReq)
 		if err != nil {
 			log.Printf("Error saving message to the database: %v", err)
 			return
 		}
-		log.Printf("msg")
-		log.Print(msg)
 		strSenderID := strconv.Itoa(msg.SenderID)
 		strRecipientID := strconv.Itoa(msg.RecipientID)
-
-		log.Println("msg.SenderID")
-		log.Println(msg.SenderID)
-		log.Println(strSenderID)
-		log.Println(strRecipientID)
 
 		channelID := GetChannelID(&msg.Type, &strSenderID, &strRecipientID, nil) // Get the correct channel ID based on the message
 
 		c.hub.BroadcastMessage(BroadcastMessage{
-			Message:   []byte(res.Content),
+			Message: &m.MessageWrapper{
+				PrivateMsg: &m.PrivateMessageRes{
+					ID:          insertedMessage.ID,
+					Type:        insertedMessage.Type,
+					SenderID:    insertedMessage.SenderID,
+					RecipientID: *insertedMessage.RecipientID,
+					Content:     insertedMessage.Content,
+					CreatedAt:   insertedMessage.CreatedAt,
+				},
+			},
 			ChannelID: channelID,
 		})
 	}

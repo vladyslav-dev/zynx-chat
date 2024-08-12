@@ -8,36 +8,53 @@ import (
 type User struct {
 	ID        int       `json:"id" bson:"id"`
 	Username  string    `json:"username" bson:"username"`
-	Email     string    `json:"email" bson:"email"`
+	Phone     string    `json:"phone" bson:"phone"`
 	Password  string    `json:"passowrd" bson:"password"`
 	CreatedAt time.Time `json:"created_at" bson:"created_at"`
 }
 
+/* User Request */
+
 type CreateUserReq struct {
 	Username string `json:"username" bson:"username"`
-	Email    string `json:"email" bson:"email"`
+	Phone    string `json:"phone" bson:"phone"`
 	Password string `json:"password" bson:"password"`
 }
-
-type UserRes struct {
-	ID       int    `json:"id" bson:"id"`
-	Username string `json:"username" bson:"username"`
-	Email    string `json:"email" bson:"email"`
-}
-
-type JWTUser = UserRes
 
 type LoginUserReq struct {
-	Email    string `json:"email" bson:"email"`
+	Phone    string `json:"phone" bson:"phone"`
 	Password string `json:"password" bson:"password"`
 }
 
-type LoginUserRes struct {
-	ID           int    `json:"id" bson:"id"`
-	Username     string `json:"username" bson:"username"`
-	Email        string `json:"email" bson:"email"`
+/* User Response */
+type BaseUserResponse struct {
+	ID       int    `json:"id" bson:"id"`
+	Username string `json:"username" bson:"username"`
+	Phone    string `json:"phone" bson:"phone"`
+}
+
+type UserResponseWithAccess struct {
+	BaseUserResponse
+	AccessToken string `json:"access_token" bson:"access_token"`
+}
+
+type UserResponseWithRefresh struct {
+	BaseUserResponse
+	RefreshToken string `json:"refresh_token" bson:"refresh_token"`
+}
+
+type UserResponseWithTokens struct {
+	BaseUserResponse
 	AccessToken  string `json:"access_token" bson:"access_token"`
 	RefreshToken string `json:"refresh_token" bson:"refresh_token"`
+}
+
+/* JWT */
+
+type JWTUser struct {
+	ID       int    `json:"id" bson:"id"`
+	Username string `json:"username" bson:"username"`
+	Phone    string `json:"phone" bson:"phone"`
 }
 
 type AccessToken string
@@ -49,7 +66,7 @@ type Tokens struct {
 }
 
 type UserInfo struct {
-	Email     string `json:"email" bson:"email"`
+	Phone     string `json:"phone" bson:"phone"`
 	Password  string `json:"password" bson:"password"`
 	UserAgent string `json:"user_agent" bson:"user_agent"`
 	IPAddress string `json:"ip_address" bson:"ip_address"`
@@ -78,9 +95,11 @@ type SessionRes struct {
 
 type Repository interface {
 	CreateUser(ctx context.Context, user *User) (*User, error)
-	GetUserByID(ctx context.Context, id string) (*User, error)
-	GetUserByEmail(ctx context.Context, email string) (*User, error)
-	GetAllUsers(ctx context.Context) (*[]User, error)
+	GetUserByID(ctx context.Context, id int) (*User, error)
+	GetUserByPhone(ctx context.Context, phone string) (*User, error)
+	GetUsersByGroupID(ctx context.Context, groupID int) (*[]BaseUserResponse, error)
+	GetAllUsers(ctx context.Context) (*[]BaseUserResponse, error)
+	GetUsersByIDs(ctx context.Context, usersIDs []int) (*[]BaseUserResponse, error)
 	UserExists(ctx context.Context, userID int) (bool, error)
 
 	CreateSession(c context.Context, sessionReq SessionReq) (*SessionRes, error)
@@ -90,11 +109,12 @@ type Repository interface {
 }
 
 type Service interface {
-	Register(c context.Context, req *CreateUserReq) (*UserRes, error)
-	Login(c context.Context, userInfo *UserInfo) (*LoginUserRes, error)
+	Register(c context.Context, req *CreateUserReq) (*BaseUserResponse, error)
+	Login(c context.Context, userInfo *UserInfo) (*UserResponseWithTokens, error)
 	Logout(c context.Context, token RefreshToken) error
-	ValidateSession(c context.Context, token RefreshToken) (*Tokens, error)
-	GetAllUsers(ctx context.Context) (*[]User, error)
-
-	// RefreshToken(ctx context.Context) (*LoginUserReq, error)
+	ValidateSession(c context.Context, token RefreshToken) (*UserResponseWithTokens, error)
+	GetAllUsers(ctx context.Context) (*[]BaseUserResponse, error)
+	GetUsersByIDs(ctx context.Context, usersIDs []int) (*[]BaseUserResponse, error)
+	GetUsersByGroupID(ctx context.Context, groupID int) (*[]BaseUserResponse, error)
+	isSessionExist(ctx context.Context, token RefreshToken) bool
 }

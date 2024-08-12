@@ -3,9 +3,6 @@ package message
 import (
 	"context"
 	"server/db"
-	"server/internal/group"
-	"server/internal/user"
-	"strconv"
 )
 
 type repository struct {
@@ -36,25 +33,17 @@ func (r *repository) InsertMessage(c context.Context, msg *Message) (*Message, e
 	return &newmsg, nil
 }
 
-func (r *repository) GetPrivateMessages(c context.Context, SenderID, RecipientID string) (*[]PrivateMessageRes, error) {
-	var msgs []PrivateMessageRes
-
-	sid, _ := strconv.Atoi(SenderID)
-	rid, _ := strconv.Atoi(RecipientID)
+func (r *repository) GetPrivateMessages(c context.Context, SenderID, RecipientID int) (*[]PrivateMessageRes, error) {
+	msgs := []PrivateMessageRes{}
 
 	query := `
-		SELECT 
-		m.id, m.type, m.content, m.created_at,
-		s.id, s.username, s.email,
-		r.id, r.username, r.email
-		FROM messages m
-		JOIN users s ON m.sender_id = s.id
-		LEFT JOIN users r ON m.recipient_id = r.id
-		WHERE (m.recipient_id = $2 AND m.sender_id = $1) OR (m.recipient_id = $1 AND m.sender_id = $2) AND m.type = 'private'
-		ORDER BY m.created_at
+		SELECT id, type, sender_id, recipient_id, content, created_at
+		FROM messages
+		WHERE (recipient_id = $2 AND sender_id = $1) OR (recipient_id = $1 AND sender_id = $2) AND type = 'private'
+		ORDER BY created_at
 	`
 
-	rows, err := r.db.QueryContext(c, query, sid, rid)
+	rows, err := r.db.QueryContext(c, query, SenderID, RecipientID)
 	if err != nil {
 		return nil, err
 	}
@@ -63,18 +52,10 @@ func (r *repository) GetPrivateMessages(c context.Context, SenderID, RecipientID
 
 	for rows.Next() {
 		var msg PrivateMessageRes
-		var sender, recipient user.UserRes
 
-		if err := rows.Scan(
-			&msg.ID, &msg.Type, &msg.Content, &msg.CreatedAt,
-			&sender.ID, &sender.Username, &sender.Email,
-			&recipient.ID, &recipient.Username, &recipient.Email,
-		); err != nil {
+		if err := rows.Scan(&msg.ID, &msg.Type, &msg.SenderID, &msg.RecipientID, &msg.Content, &msg.CreatedAt); err != nil {
 			return nil, err
 		}
-
-		msg.Sender = sender
-		msg.Recipient = recipient
 
 		msgs = append(msgs, msg)
 	}
@@ -82,19 +63,14 @@ func (r *repository) GetPrivateMessages(c context.Context, SenderID, RecipientID
 	return &msgs, nil
 }
 
-func (r *repository) GetGroupMessages(c context.Context, groupID string) (*[]GroupMessageRes, error) {
-	var msgs []GroupMessageRes
+func (r *repository) GetGroupMessages(c context.Context, groupID int) (*[]GroupMessageRes, error) {
+	msgs := []GroupMessageRes{}
 
 	query := `
-		SELECT 
-		m.id, m.type, m.content, m.created_at,
-		s.id, s.username, s.email,
-		g.id, g.name
-		FROM messages m
-		JOIN users s ON sender_id = s.id
-		LEFT JOIN groups g ON group_id = g.id
-		WHERE m.group_id = $1 AND m.type = 'group'
-		ORDER BY m.created_at
+		SELECT id, type, sender_id, group_id, content, created_at
+		FROM messages
+		WHERE group_id = $1 AND type = 'group'
+		ORDER BY created_at
 	`
 
 	rows, err := r.db.QueryContext(c, query, groupID)
@@ -106,40 +82,13 @@ func (r *repository) GetGroupMessages(c context.Context, groupID string) (*[]Gro
 
 	for rows.Next() {
 		var msg GroupMessageRes
-		var sender user.UserRes
-		var group group.GroupRes
 
-		if err := rows.Scan(
-			&msg.ID, &msg.Type, &msg.Content, &msg.CreatedAt,
-			&sender.ID, &sender.Username, &sender.Email,
-			&group.ID, &group.Name,
-		); err != nil {
+		if err := rows.Scan(&msg.ID, &msg.Type, &msg.SenderID, &msg.GroupID, &msg.Content, &msg.CreatedAt); err != nil {
 			return nil, err
 		}
 
-		msg.Sender = sender
-		msg.Group = group
 		msgs = append(msgs, msg)
 	}
 
 	return &msgs, nil
-
-	// var msgs []GroupMessageRes
-	// query := "SELECT * FROM messages WHERE group_id = $1 AND type = 'group'"
-	// rows, err := r.db.QueryContext(c, query, groupID)
-	// if err != nil {
-	// 	return nil, err
-	// }
-	// defer rows.Close()
-
-	// for rows.Next() {
-	// 	var msg GroupMessageRes
-	// 	if err := rows.Scan(&msg.ID, &msg.Type, &msg.SenderID, &msg.GroupID, &msg.RecipientID, &msg.Content, &msg.CreatedAt); err != nil {
-	// 		return nil, err
-	// 	}
-
-	// 	msgs = append(msgs, msg)
-	// }
-
-	// return &msgs, nil
 }

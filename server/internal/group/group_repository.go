@@ -24,8 +24,19 @@ func (r *repository) CreateGroup(ctx context.Context, group *Group) (*Group, err
 	return group, nil
 }
 
+func (r *repository) GetGroupById(ctx context.Context, groupID int) (*Group, error) {
+	var g Group
+	query := "SELECT id, name, created_at FROM groups WHERE id = $1"
+	err := r.db.QueryRowContext(ctx, query, groupID).Scan(&g.ID, &g.Name, &g.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &g, nil
+}
+
 func (r *repository) GetAllGroups(ctx context.Context) (*[]Group, error) {
-	var groups []Group
+	groups := []Group{}
 
 	query := "SELECT * FROM groups"
 	rows, err := r.db.QueryContext(ctx, query)
@@ -50,7 +61,6 @@ func (r *repository) GetAllGroups(ctx context.Context) (*[]Group, error) {
 	}
 
 	return &groups, nil
-
 }
 
 func (r *repository) GroupExists(ctx context.Context, groupID int) (bool, error) {

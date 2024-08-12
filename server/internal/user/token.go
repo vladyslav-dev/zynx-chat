@@ -12,7 +12,7 @@ func GenerateTokens(jwtUser JWTUser) (*Tokens, error) {
 	accessClaims := jwt.MapClaims{
 		"id":       jwtUser.ID,
 		"username": jwtUser.Username,
-		"email":    jwtUser.Email,
+		"phone":    jwtUser.Phone,
 		"exp":      time.Now().Add(15 * time.Minute).Unix(), // 15 minutes
 	}
 	accessToken := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims)
@@ -26,7 +26,7 @@ func GenerateTokens(jwtUser JWTUser) (*Tokens, error) {
 	refreshClaims := jwt.MapClaims{
 		"id":       jwtUser.ID,
 		"username": jwtUser.Username,
-		"email":    jwtUser.Email,
+		"phone":    jwtUser.Phone,
 		"exp":      time.Now().Add(30 * 24 * time.Hour).Unix(), // 30 days
 	}
 
@@ -59,10 +59,15 @@ func ValidateAccessToken(token AccessToken) (*JWTUser, error) {
 		return nil, fmt.Errorf("invalid token")
 	}
 
+	userID, ok := claims["id"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("invalid token: user ID not found")
+	}
+
 	user := &JWTUser{
-		ID:       claims["id"].(int),
+		ID:       int(userID),
 		Username: claims["username"].(string),
-		Email:    claims["email"].(string),
+		Phone:    claims["phone"].(string),
 	}
 
 	return user, nil
@@ -82,10 +87,15 @@ func ValidateRefreshToken(token RefreshToken) (*JWTUser, error) {
 		return nil, fmt.Errorf("invalid token")
 	}
 
+	userID, ok := claims["id"].(float64)
+	if !ok {
+		return nil, fmt.Errorf("invalid token: user ID not found")
+	}
+
 	user := &JWTUser{
-		ID:       claims["id"].(int),
+		ID:       int(userID),
 		Username: claims["username"].(string),
-		Email:    claims["email"].(string),
+		Phone:    claims["phone"].(string),
 	}
 
 	return user, nil

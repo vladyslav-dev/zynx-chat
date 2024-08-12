@@ -43,6 +43,18 @@ func (s *service) CreateGroup(c context.Context, req *CreateGroupReq) (*GroupRes
 	return res, nil
 }
 
+func (s *service) GetGroupById(c context.Context, groupID int) (*Group, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	g, err := s.GroupRepo.GetGroupById(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	return g, nil
+}
+
 func (s *service) GetAllGroups(c context.Context) (*[]Group, error) {
 	ctx, cancel := context.WithTimeout(c, s.timeout)
 	defer cancel()

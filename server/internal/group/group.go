@@ -36,6 +36,7 @@ type Repository interface {
 	GetAllGroups(ctx context.Context) (*[]Group, error)
 	GroupExists(ctx context.Context, groupID int) (bool, error)
 	JoinGroup(ctx context.Context, req *JoinGroupReq) (*GroupMember, error)
+	GetGroupById(ctx context.Context, groupID int) (*Group, error)
 	// AddUserToGroup(ctx context.Context, user *user.User) (*GroupMember, error)
 	// GetGroupsByUserId(ctx context.Context, userId *string) (*[]Group, error)
 }
@@ -44,6 +45,7 @@ type Service interface {
 	CreateGroup(ctx context.Context, req *CreateGroupReq) (*GroupRes, error)
 	GetAllGroups(ctx context.Context) (*[]Group, error)
 	JoinGroup(ctx context.Context, req *JoinGroupReq) (*GroupMember, error)
+	GetGroupById(ctx context.Context, groupID int) (*Group, error)
 	// AddUserToGroup(c context.Context, req *user.User) (*GroupMember, error)
 	// GetGroupsByUserId(ctx context.Context, req *string) (*[]Group, error)
 }

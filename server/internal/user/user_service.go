@@ -2,6 +2,8 @@ package user
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"server/util"
 	"time"
 )
@@ -18,7 +20,7 @@ func NewService(repository Repository) Service {
 	}
 }
 
-func (s *service) Register(c context.Context, req *CreateUserReq) (*UserRes, error) {
+func (s *service) Register(c context.Context, req *CreateUserReq) (*BaseUserResponse, error) {
 	ctx, cancel := context.WithTimeout(c, s.timeout)
 	defer cancel()
 
@@ -29,7 +31,7 @@ func (s *service) Register(c context.Context, req *CreateUserReq) (*UserRes, err
 
 	u := &User{
 		Username: req.Username,
-		Email:    req.Email,
+		Phone:    req.Phone,
 		Password: hashedPassword,
 	}
 
@@ -38,33 +40,33 @@ func (s *service) Register(c context.Context, req *CreateUserReq) (*UserRes, err
 		return nil, err
 	}
 
-	res := &UserRes{
+	res := &BaseUserResponse{
 		ID:       int(r.ID),
 		Username: r.Username,
-		Email:    r.Email,
+		Phone:    r.Phone,
 	}
 
 	return res, nil
 }
 
-func (s *service) Login(c context.Context, userInfo *UserInfo) (*LoginUserRes, error) {
+func (s *service) Login(c context.Context, userInfo *UserInfo) (*UserResponseWithTokens, error) {
 	ctx, cancel := context.WithTimeout(c, s.timeout)
 	defer cancel()
 
-	u, err := s.GetUserByEmail(ctx, userInfo.Email)
+	u, err := s.GetUserByPhone(ctx, userInfo.Phone)
 	if err != nil {
-		return &LoginUserRes{}, err
+		return &UserResponseWithTokens{}, errors.New("invalid phone number")
 	}
 
 	err = util.CheckPassword(userInfo.Password, u.Password)
 	if err != nil {
-		return &LoginUserRes{}, err
+		return &UserResponseWithTokens{}, err
 	}
 
 	tokens, err := GenerateTokens(JWTUser{
 		ID:       u.ID,
 		Username: u.Username,
-		Email:    u.Email,
+		Phone:    u.Phone,
 	})
 	if err != nil {
 		return nil, err
@@ -81,10 +83,12 @@ func (s *service) Login(c context.Context, userInfo *UserInfo) (*LoginUserRes, e
 		return nil, err
 	}
 
-	return &LoginUserRes{
-		Username:     u.Username,
-		Email:        u.Email,
-		ID:           int(u.ID),
+	return &UserResponseWithTokens{
+		BaseUserResponse: BaseUserResponse{
+			ID:       int(u.ID),
+			Username: u.Username,
+			Phone:    u.Phone,
+		},
 		AccessToken:  string(tokens.AccessToken),
 		RefreshToken: string(tokens.RefreshToken),
 	}, nil
@@ -102,18 +106,27 @@ func (s *service) Logout(c context.Context, token RefreshToken) error {
 	return nil
 }
 
-func (s *service) ValidateSession(c context.Context, token RefreshToken) (*Tokens, error) {
-	_, err := ValidateRefreshToken(token)
-	if err != nil {
-		return nil, err
+func (s *service) isSessionExist(c context.Context, token RefreshToken) bool {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	_, err := s.Repository.GetSession(ctx, token)
+	return err == nil
+}
+
+func (s *service) ValidateSession(c context.Context, token RefreshToken) (*UserResponseWithTokens, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	baseUserResponse, _ := ValidateRefreshToken(token)
+
+	session, _ := s.Repository.GetSession(ctx, token)
+
+	if (baseUserResponse == nil) || (session == nil) {
+		return nil, errors.New("Unauthorized")
 	}
 
-	session, err := s.Repository.GetSession(c, token)
-	if err != nil {
-		return nil, err
-	}
-
-	user, err := s.Repository.GetUserByID(c, string(session.UserID))
+	user, err := s.Repository.GetUserByID(ctx, int(session.UserID))
 	if err != nil {
 		return nil, err
 	}
@@ -121,9 +134,11 @@ func (s *service) ValidateSession(c context.Context, token RefreshToken) (*Token
 	tokens, err := GenerateTokens(JWTUser{
 		ID:       user.ID,
 		Username: user.Username,
-		Email:    user.Email,
+		Phone:    user.Phone,
 	})
+
 	if err != nil {
+		fmt.Println("Error generating tokens")
 		return nil, err
 	}
 
@@ -134,22 +149,55 @@ func (s *service) ValidateSession(c context.Context, token RefreshToken) (*Token
 		IPAddress:    session.IPAddress,
 	}
 
-	updatedSession, err := s.Repository.UpdateSession(c, sessionReq, RefreshToken(tokens.RefreshToken))
+	_, err = s.Repository.UpdateSession(ctx, sessionReq, RefreshToken(tokens.RefreshToken))
 	if err != nil {
+		fmt.Println("Error updating session")
 		return nil, err
 	}
 
-	return &Tokens{
-		AccessToken:  tokens.AccessToken,
-		RefreshToken: RefreshToken(updatedSession.RefreshToken),
+	return &UserResponseWithTokens{
+		BaseUserResponse: BaseUserResponse{
+			ID:       int(user.ID),
+			Username: user.Username,
+			Phone:    user.Phone,
+		},
+		AccessToken:  string(tokens.AccessToken),
+		RefreshToken: string(tokens.RefreshToken),
 	}, nil
 }
 
-func (s *service) GetAllUsers(c context.Context) (*[]User, error) {
-	r, err := s.Repository.GetAllUsers(c)
+func (s *service) GetAllUsers(c context.Context) (*[]BaseUserResponse, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	r, err := s.Repository.GetAllUsers(ctx)
 	if err != nil {
 		return r, err
 	}
 
 	return r, nil
+}
+
+func (s *service) GetUsersByIDs(c context.Context, usersIDs []int) (*[]BaseUserResponse, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	us, err := s.Repository.GetUsersByIDs(ctx, usersIDs)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, err
+}
+
+func (s *service) GetUsersByGroupID(c context.Context, groupID int) (*[]BaseUserResponse, error) {
+	ctx, cancel := context.WithTimeout(c, s.timeout)
+	defer cancel()
+
+	us, err := s.Repository.GetUsersByGroupID(ctx, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	return us, err
 }

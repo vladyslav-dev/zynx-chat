@@ -2,8 +2,9 @@ package user
 
 import (
 	"context"
-	"log"
 	"server/db"
+
+	"github.com/lib/pq"
 )
 
 type repository struct {
@@ -16,8 +17,8 @@ func NewRepository(db db.DBTX) Repository {
 
 func (r *repository) CreateUser(ctx context.Context, user *User) (*User, error) {
 	var lastInsertId int
-	query := "INSERT INTO users(username, email, password) VALUES ($1, $2, $3) returning id"
-	err := r.db.QueryRowContext(ctx, query, user.Username, user.Email, user.Password).Scan(&lastInsertId)
+	query := "INSERT INTO users(username, phone, password) VALUES ($1, $2, $3) returning id"
+	err := r.db.QueryRowContext(ctx, query, user.Username, user.Phone, user.Password).Scan(&lastInsertId)
 	if err != nil {
 		return &User{}, err
 	}
@@ -26,29 +27,13 @@ func (r *repository) CreateUser(ctx context.Context, user *User) (*User, error) 
 	return user, nil
 }
 
-func (r *repository) GetUserByEmail(ctx context.Context, email string) (*User, error) {
+func (r *repository) GetUserByPhone(ctx context.Context, phone string) (*User, error) {
 	u := User{}
 
-	query := "SELECT id, email, username, password FROM users WHERE email = $1"
+	query := "SELECT id, phone, username, password, created_at FROM users WHERE phone = $1"
 
-	err := r.db.QueryRowContext(ctx, query, email).Scan(&u.ID, &u.Email, &u.Username, &u.Password, &u.CreatedAt)
+	err := r.db.QueryRowContext(ctx, query, phone).Scan(&u.ID, &u.Phone, &u.Username, &u.Password, &u.CreatedAt)
 
-	log.Println("Error retrieving user:", err)
-
-	if err != nil {
-		return &User{}, err
-	}
-
-	log.Println("User retrieved:", u)
-
-	return &u, nil
-}
-
-func (r *repository) GetUserByID(ctx context.Context, id string) (*User, error) {
-	u := User{}
-
-	query := "SELECT id, email, username, password FROM users WHERE id = $1"
-	err := r.db.QueryRowContext(ctx, query, id).Scan(&u.ID, &u.Email, &u.Username, &u.Password, &u.CreatedAt)
 	if err != nil {
 		return nil, err
 	}
@@ -56,10 +41,85 @@ func (r *repository) GetUserByID(ctx context.Context, id string) (*User, error) 
 	return &u, nil
 }
 
-func (r *repository) GetAllUsers(ctx context.Context) (*[]User, error) {
-	var us []User
+func (r *repository) GetUserByID(ctx context.Context, id int) (*User, error) {
+	u := User{}
 
-	query := "SELECT id, username, email, password FROM users"
+	query := "SELECT id, phone, username, password, created_at FROM users WHERE id = $1"
+	err := r.db.QueryRowContext(ctx, query, id).Scan(&u.ID, &u.Phone, &u.Username, &u.Password, &u.CreatedAt)
+	if err != nil {
+		return nil, err
+	}
+
+	return &u, nil
+}
+
+func (r *repository) GetUsersByIDs(ctx context.Context, usersIDs []int) (*[]BaseUserResponse, error) {
+	us := []BaseUserResponse{}
+
+	query := `
+		SELECT id, username, phone 
+		FROM users 
+		WHERE id = ANY($1)
+	`
+
+	rows, err := r.db.QueryContext(ctx, query, pq.Array(usersIDs))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var u BaseUserResponse
+		if err := rows.Scan(&u.ID, &u.Username, &u.Phone); err != nil {
+			return nil, err
+		}
+		us = append(us, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &us, nil
+}
+
+func (r *repository) GetUsersByGroupID(ctx context.Context, groupID int) (*[]BaseUserResponse, error) {
+	users := []BaseUserResponse{}
+
+	query := `
+		SELECT u.id, u.username, u.phone
+		FROM users u
+		INNER JOIN group_members gm ON u.id = gm.user_id
+		WHERE gm.group_id = $1
+	`
+	rows, err := r.db.QueryContext(ctx, query, groupID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var u BaseUserResponse
+
+		if err := rows.Scan(&u.ID, &u.Username, &u.Phone); err != nil {
+			return nil, err
+		}
+
+		users = append(users, u)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+
+	return &users, nil
+}
+
+func (r *repository) GetAllUsers(ctx context.Context) (*[]BaseUserResponse, error) {
+	us := []BaseUserResponse{}
+
+	query := "SELECT id, username, phone FROM users"
 
 	rows, err := r.db.QueryContext(ctx, query)
 	if err != nil {
@@ -69,9 +129,9 @@ func (r *repository) GetAllUsers(ctx context.Context) (*[]User, error) {
 	defer rows.Close()
 
 	for rows.Next() {
-		var u User
+		var u BaseUserResponse
 
-		if err := rows.Scan(&u.ID, &u.Username, &u.Email, &u.Password); err != nil {
+		if err := rows.Scan(&u.ID, &u.Username, &u.Phone); err != nil {
 			return nil, err
 		}
 
@@ -96,11 +156,11 @@ func (r *repository) CreateSession(c context.Context, sessionReq SessionReq) (*S
 	var res SessionRes
 	query := `
 		INSERT INTO sessions (user_id, refresh_token, user_agent, ip_address)
-		VALUES ($1, $2, $3, $4, $5)
+		VALUES ($1, $2, $3, $4)
 		RETURNING id, created_at
 	`
 
-	err := r.db.QueryRowContext(c, query, sessionReq.UserID, sessionReq.RefreshToken, sessionReq.UserAgent, sessionReq.IPAddress).Scan(&res)
+	err := r.db.QueryRowContext(c, query, sessionReq.UserID, sessionReq.RefreshToken, sessionReq.UserAgent, sessionReq.IPAddress).Scan(&res.ID, &res.CreatedAt)
 	if err != nil {
 		return nil, err
 	}

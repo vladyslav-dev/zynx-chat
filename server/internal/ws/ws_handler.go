@@ -1,7 +1,6 @@
 package ws
 
 import (
-	"fmt"
 	"log"
 	"server/internal/message"
 	"sort"
@@ -27,9 +26,6 @@ func GetChannelID(t, senderID, recipientID, groupID *string) string {
 	ids := []string{*senderID, *recipientID}
 	sort.Strings(ids)
 
-	log.Printf("Params: t=%s, senderID=%s, recipientID=%s", *t, *senderID, *recipientID)
-	log.Printf("IDs: senderID=%s, recipientID=%s", ids[0], ids[1])
-
 	return "private-" + ids[0] + "-" + ids[1]
 }
 
@@ -43,7 +39,7 @@ func (h *Handler) ServeWs(c *gin.Context, messageService message.Service) {
 	client := &Client{
 		hub:            h.hub,
 		conn:           conn,
-		send:           make(chan []byte, 256),
+		send:           make(chan *message.MessageWrapper, 256),
 		messageService: &messageService,
 		channels:       make(map[string]bool),
 	}
@@ -55,10 +51,7 @@ func (h *Handler) ServeWs(c *gin.Context, messageService message.Service) {
 	recipientID := c.Query("recipient_id")
 	groupID := c.Query("group_id")
 
-	log.Printf("Query Params 57: type=%s, sender_id=%s, recipient_id=%s", t, senderID, recipientID)
 	channelID := GetChannelID(&t, &senderID, &recipientID, &groupID)
-
-	fmt.Println(channelID)
 
 	h.hub.AddClientToChannel(client, channelID)
 

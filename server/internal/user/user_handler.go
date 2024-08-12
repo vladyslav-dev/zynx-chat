@@ -2,6 +2,7 @@ package user
 
 import (
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,10 +31,22 @@ func (h *Handler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, userRes)
+	c.JSON(http.StatusCreated, userRes)
 }
 
 func (h *Handler) Login(c *gin.Context) {
+	refreshToken, err := c.Request.Cookie("refreshToken")
+
+	/* Handle if user already logged in */
+	if err == nil && refreshToken.Value != "" {
+		isExist := h.Service.isSessionExist(c, RefreshToken(refreshToken.Value))
+		if isExist {
+			c.JSON(http.StatusConflict, gin.H{"message": "User already logged in"})
+			return
+		}
+
+	}
+
 	var reqUser LoginUserReq
 	if err := c.ShouldBindJSON(&reqUser); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -44,7 +57,7 @@ func (h *Handler) Login(c *gin.Context) {
 	ipAddress := c.ClientIP()
 
 	userInfo := UserInfo{
-		Email:     reqUser.Email,
+		Phone:     reqUser.Phone,
 		Password:  reqUser.Password,
 		UserAgent: userAgent,
 		IPAddress: ipAddress,
@@ -52,6 +65,11 @@ func (h *Handler) Login(c *gin.Context) {
 
 	u, err := h.Service.Login(c.Request.Context(), &userInfo)
 	if err != nil {
+
+		if err.Error() == "invalid phone number" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
@@ -60,10 +78,13 @@ func (h *Handler) Login(c *gin.Context) {
 
 	c.SetCookie("refreshToken", u.RefreshToken, refreshTokenMaxAge, "/", "localhost", false, true)
 
-	c.JSON(http.StatusOK, UserRes{
-		ID:       u.ID,
-		Username: u.Username,
-		Email:    u.Email,
+	c.JSON(http.StatusOK, UserResponseWithAccess{
+		BaseUserResponse: BaseUserResponse{
+			ID:       int(u.ID),
+			Username: u.Username,
+			Phone:    u.Phone,
+		},
+		AccessToken: u.AccessToken,
 	})
 }
 
@@ -82,7 +103,7 @@ func (h *Handler) Logout(c *gin.Context) {
 
 	c.SetCookie("refreshToken", "", -1, "", "", false, true)
 
-	c.JSON(http.StatusOK, gin.H{"message": "Logout successfully"})
+	c.JSON(http.StatusNoContent, gin.H{})
 }
 
 func (h *Handler) GetAllUsers(c *gin.Context) {
@@ -94,6 +115,45 @@ func (h *Handler) GetAllUsers(c *gin.Context) {
 	c.JSON(http.StatusOK, us)
 }
 
+func (h *Handler) GetUsersByIDs(c *gin.Context) {
+	var usersIDs []int
+
+	if err := c.ShouldBindJSON(&usersIDs); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request payload"})
+		return
+	}
+
+	us, err := h.Service.GetUsersByIDs(c, usersIDs)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, us)
+}
+
+func (h *Handler) GetUsersByGroupID(c *gin.Context) {
+	groupID := c.Query("group_id")
+	if groupID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"Error": "Missing required query parameter group_id"})
+		return
+	}
+
+	id, err := strconv.Atoi(groupID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"Error": "group_id is not a number"})
+		return
+	}
+
+	users, err := h.Service.GetUsersByGroupID(c, id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"Error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, users)
+}
+
 func (h *Handler) RefreshToken(c *gin.Context) {
 	refreshToken, err := c.Request.Cookie("refreshToken")
 	if err != nil || refreshToken.Value == "" {
@@ -101,15 +161,26 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 		return
 	}
 
-	tokens, err := h.Service.ValidateSession(c, RefreshToken(refreshToken.Value))
+	userWithTokens, err := h.Service.ValidateSession(c, RefreshToken(refreshToken.Value))
 	if err != nil {
+		if err.Error() == "Unauthorized" {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
 	refreshTokenMaxAge := int((30 * 24 * time.Hour).Seconds()) // 30 days
 
-	c.SetCookie("refreshToken", string(tokens.RefreshToken), refreshTokenMaxAge, "/", "localhost", false, true)
+	c.SetCookie("refreshToken", string(userWithTokens.RefreshToken), refreshTokenMaxAge, "/", "localhost", false, true)
 
-	c.JSON(http.StatusOK, gin.H{"accessToken": tokens.AccessToken})
+	c.JSON(http.StatusOK, UserResponseWithAccess{
+		BaseUserResponse: BaseUserResponse{
+			ID:       userWithTokens.ID,
+			Username: userWithTokens.Username,
+			Phone:    userWithTokens.Phone,
+		},
+		AccessToken: userWithTokens.AccessToken,
+	})
 }

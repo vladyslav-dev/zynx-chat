@@ -2,6 +2,7 @@ package ws
 
 import (
 	"fmt"
+	"server/internal/message"
 	"sync"
 )
 
@@ -15,7 +16,7 @@ type Hub struct {
 }
 
 type BroadcastMessage struct {
-	Message   []byte
+	Message   *message.MessageWrapper
 	ChannelID string
 }
 
@@ -56,6 +57,7 @@ func (h *Hub) Run() {
 			for client := range clients {
 				select {
 				case client.send <- broadcastMessage.Message:
+
 				default:
 					close(client.send)
 					delete(h.clients, client)
@@ -72,20 +74,6 @@ func (h *Hub) RemoveFromAllChannels(client *Client) {
 		}
 	}
 }
-
-// func (h *Hub) RouteMessage(broadcastMessage BroadcastMessage) {
-// 	if clients, ok := h.channels[broadcastMessage.ChannelID]; ok {d
-// 		for client := range clients {
-// 			select {
-// 			case client.send <- broadcastMessage.Message:
-// 			default:
-// 				close(client.send)
-// 				delete(h.clients, client)
-
-// 			}
-// 		}
-// 	}
-// }
 
 func (h *Hub) AddClientToChannel(client *Client, channelID string) {
 	h.mu.Lock()

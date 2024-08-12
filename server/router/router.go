@@ -11,28 +11,35 @@ import (
 )
 
 func RegisterUserRoutes(r *gin.Engine, userHandler *user.Handler) {
-	auth := r.Group("/auth")
+	auth := r.Group("api/auth")
 	{
 		auth.POST("/register", userHandler.Register)
 		auth.POST("/login", userHandler.Login)
-		auth.GET("/logout", userHandler.Logout)
-		auth.GET("/refresh-token", userHandler.RefreshToken)
+		auth.POST("/logout", userHandler.Logout)
+		auth.GET("/refreshToken", userHandler.RefreshToken)
 	}
-	// r.GET("api/getAllUsers", userHandler.GetAllUsers)
+
+	user := r.Group("api/user").Use(middlewares.AuthMiddleware())
+	user.GET("/getAll", userHandler.GetAllUsers)
+	user.GET("/getByGroupId", userHandler.GetUsersByGroupID)
+	user.POST("/getByIds", userHandler.GetUsersByIDs)
+
 }
 
 func RegisterGroupRoutes(r *gin.Engine, groupHandler *group.Handler) {
-	group := r.Group("/group")
+	group := r.Group("api/group")
 	group.Use(middlewares.AuthMiddleware())
 	{
 		group.POST("/create", groupHandler.CreateGroup)
-		group.GET("/get-all", groupHandler.GetAllGroups)
+		group.GET("/get", groupHandler.GetGroupByID)
+		group.GET("/getAll", groupHandler.GetAllGroups)
 		group.POST("/join", groupHandler.JoinGroup)
 	}
 }
 
 func RegisterWs(r *gin.Engine, wsHandler *ws.Handler, messageHandler *message.Handler, messageService message.Service) {
-	message := r.Group("/message")
+	message := r.Group("api/message")
+	message.Use(middlewares.AuthMiddleware())
 	{
 		message.POST("/private", messageHandler.GetPrivateMessages)
 		message.POST("/group", messageHandler.GetGroupMessages)
