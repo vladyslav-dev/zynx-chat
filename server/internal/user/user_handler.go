@@ -2,6 +2,7 @@ package user
 
 import (
 	"net/http"
+	"os"
 	"strconv"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 type Handler struct {
 	Service
 }
+
+var CLIENT_URL = os.Getenv("CLIENT_URL")
 
 func NewHandler(s Service) *Handler {
 	return &Handler{
@@ -76,7 +79,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	refreshTokenMaxAge := int((30 * 24 * time.Hour).Seconds()) // 30 days
 
-	c.SetCookie("refreshToken", u.RefreshToken, refreshTokenMaxAge, "/", "localhost", false, true)
+	c.SetCookie("refreshToken", u.RefreshToken, refreshTokenMaxAge, "/", CLIENT_URL, false, true)
 
 	c.JSON(http.StatusOK, UserResponseWithAccess{
 		BaseUserResponse: BaseUserResponse{
@@ -173,7 +176,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 	refreshTokenMaxAge := int((30 * 24 * time.Hour).Seconds()) // 30 days
 
-	c.SetCookie("refreshToken", string(userWithTokens.RefreshToken), refreshTokenMaxAge, "/", "localhost", false, true)
+	c.SetCookie("refreshToken", string(userWithTokens.RefreshToken), refreshTokenMaxAge, "/", CLIENT_URL, false, true)
 
 	c.JSON(http.StatusOK, UserResponseWithAccess{
 		BaseUserResponse: BaseUserResponse{
