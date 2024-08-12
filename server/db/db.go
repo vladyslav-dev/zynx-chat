@@ -19,7 +19,9 @@ type Database struct {
 }
 
 func NewDatabase() (*Database, error) {
-	db, err := sql.Open("postgres", "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable")
+	// localPostgresURL := "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable"
+	railwayPostgresURL := "postgresql://postgres:kNLJpKALnFhTvOfyGiFbGOeBXstVArwG@roundhouse.proxy.rlwy.net:38290/railway"
+	db, err := sql.Open("postgres", railwayPostgresURL)
 	if err != nil {
 		return nil, err
 	}
