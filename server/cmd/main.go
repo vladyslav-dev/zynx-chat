@@ -57,5 +57,5 @@ func main() {
 	// wsHandler := ws.NewHandler(hub)
 	// go hub.Run()
 
-	r.Run("localhost:8080")
+	r.Run("https://whisper-warp-production.up.railway.app/:80")
 }
