@@ -3,6 +3,7 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"os"
 
 	_ "github.com/lib/pq"
@@ -21,7 +22,10 @@ type Database struct {
 
 func NewDatabase() (*Database, error) {
 	// localPostgresURL := "postgresql://root:admin@localhost:5433/whisper-warp-db?sslmode=disable"
+
 	POSTGRES_URL := os.Getenv("POSTGRES_URL")
+	fmt.Println("POSTGRES_URL: ", POSTGRES_URL)
+
 	db, err := sql.Open("postgres", POSTGRES_URL)
 	if err != nil {
 		return nil, err
