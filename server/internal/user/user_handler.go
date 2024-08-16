@@ -79,6 +79,7 @@ func (h *Handler) Login(c *gin.Context) {
 
 	refreshTokenMaxAge := int((30 * 24 * time.Hour).Seconds()) // 30 days
 
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie("refreshToken", u.RefreshToken, refreshTokenMaxAge, "/", CLIENT_URL, true, true)
 
 	c.JSON(http.StatusOK, UserResponseWithAccess{
@@ -104,6 +105,7 @@ func (h *Handler) Logout(c *gin.Context) {
 		return
 	}
 
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie("refreshToken", "", -1, "", "", true, true)
 
 	c.JSON(http.StatusNoContent, gin.H{})
@@ -176,6 +178,7 @@ func (h *Handler) RefreshToken(c *gin.Context) {
 
 	refreshTokenMaxAge := int((30 * 24 * time.Hour).Seconds()) // 30 days
 
+	c.SetSameSite(http.SameSiteNoneMode)
 	c.SetCookie("refreshToken", string(userWithTokens.RefreshToken), refreshTokenMaxAge, "/", CLIENT_URL, true, true)
 
 	c.JSON(http.StatusOK, UserResponseWithAccess{
