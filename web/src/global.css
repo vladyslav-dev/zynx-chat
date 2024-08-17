@@ -75,7 +75,6 @@
     @apply border-border;
   }
   body {
-    @apply bg-[#000] text-white;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 

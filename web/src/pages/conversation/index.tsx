@@ -1,18 +1,24 @@
 import useGlobalStore from "../../shared/store/global"
 import { Box, Flex, Heading, TabNav, Text } from "@radix-ui/themes"
-import React, { RefObject, useEffect, useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import { useLocation } from "react-router-dom"
 import tempAvatar from "../../assets/temp-avatar.svg"
 import useConversationStore, { GroupConversation, PrivateConversation } from "../../shared/store/conversation"
 import useAuthStore from "../../shared/store/auth"
 import { WEBSOCKET_URL } from "../../constants"
+import CaretLeftIcon from "../../shared/components/icons/CaretLeftIcon"
+import useScreenWidth from "../../shared/hooks/useScreenWidth"
 
 const ConversationHeader = () => {
-    const { conversationTitle, activeGroup } = useConversationStore()
+    const { conversationTitle, activeGroup, setActiveConversation } = useConversationStore()
 
+    const onBackClick = () => {
+        setActiveConversation(null)
+    }
 
     return (
-        <Flex className="border-b border-zinc-300 w-full">
+        <Flex className="items-center border-b border-zinc-300 w-full">
+            <CaretLeftIcon onClick={onBackClick} className="inline-block w-[28px] h-[28px] cursor-pointer" />
             <Heading as={"h2"} className="p-4">{conversationTitle}</Heading>
         </Flex>
     )
@@ -227,11 +233,20 @@ const ConversationSettings = () => {
 }
 
 const ConversationView = () => {
-   
+    const { activeConversation } = useConversationStore()
+
+    if (activeConversation) {
+        return (
+            <Flex className="overflow-scroll w-full">
+                <ConversationDetails />
+                {/* <ConversationSettings /> */}
+            </Flex>
+        )
+    }
+
     return (
-        <Flex className="overflow-scroll w-full">
-            <ConversationDetails />
-            {/* <ConversationSettings /> */}
+        <Flex className="h-full w-full" justify={"center"} align={"center"}>
+            <Text size={"4"} weight={"medium"} className="opacity-30">Select a conversation</Text>
         </Flex>
     )
 }
@@ -315,6 +330,7 @@ const ConversationSidebar = () => {
 const Chat = () => {
     const { fetchPeople, fetchGroups } = useGlobalStore()
     const { activeConversation } = useConversationStore()
+    const isMobile = useScreenWidth()
 
     useEffect(() => {
         fetchPeople()
@@ -323,8 +339,16 @@ const Chat = () => {
 
     return (
         <Flex className="h-dvh w-full">
-            <ConversationSidebar />
-            {activeConversation ? <ConversationView /> : <Flex className="h-full w-full" justify={"center"} align={"center"}><Text size={"4"} weight={"medium"} className="opacity-30">Select a conversation</Text></Flex>}
+            {isMobile ? (
+                <>
+                    {activeConversation ? <ConversationView /> : <ConversationSidebar />}
+                </>            
+            ) : (
+                <>
+                    <ConversationSidebar />
+                    <ConversationView />
+                </>
+            )}
         </Flex>
     )
 }
