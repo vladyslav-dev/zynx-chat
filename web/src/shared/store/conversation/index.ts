@@ -53,11 +53,15 @@ interface IConversationStore {
     setActiveGroup: (group: Group) => void;
     // fetchActiveGroup: () => void;
 
+    isGroupMember: boolean;
+    setIsGroupMember: (isGroupMember: boolean) => void;
+
     /* One item for private conversation, multiple items for group conversation */
     conversationMembers: { [key: string]: ConversationMember };
     setConversationMembers: (members: any) => void;
 
     messages: Message[];
+    setMessages: (messages: Message[]) => void;
     addMessage: (messages: Message[]) => void;
     fetchMessages: () => void;
 }
@@ -94,15 +98,24 @@ const useConversationStore = create<IConversationStore>((set, get) => ({
     //     }
     // },
 
+    isGroupMember: false,
+    setIsGroupMember: (isGroupMember) => {
+        set({ isGroupMember: isGroupMember })
+    },
+
     conversationMembers: {},
     setConversationMembers: (members) => {
         set({ conversationMembers: members })
     },
 
     messages: [],
+    setMessages: (messages) => {
+        set({ messages: messages })
+    },
     addMessage: (messages) => {
         set({ messages: [...get().messages, ...messages] })
     },
+    
     fetchMessages: () => {
         try {
             const type = get().activeConversation?.type
@@ -123,11 +136,14 @@ const useConversationStore = create<IConversationStore>((set, get) => ({
                     .then(([messagesResponse, usersResponse]) => {
                         const members = Object.fromEntries(usersResponse.data.map((user: any) => [String(user.id), user]))
                         const conversationTitle = members[recipient_id].username
-                        set({ messages: messagesResponse.data, conversationMembers: members, conversationTitle })
+                        set({ conversationMembers: members, conversationTitle })
+
+                        get().setMessages(messagesResponse.data)
                     })
                     .catch((error) => {
                         console.error(error)
-                        set({ messages: [], conversationMembers: {} })
+                        set({ conversationMembers: {} })
+                        get().setMessages([])
                     })
                     .finally(() => {
 
@@ -144,17 +160,19 @@ const useConversationStore = create<IConversationStore>((set, get) => ({
                     .then(([messagesResponse, groupMembersResponse, groupResponse]) => {
                         const members = Object.fromEntries(groupMembersResponse.data.map((user: any) => [user.id, user]))
                         const conversationTitle = groupResponse.data.name
-                        set({ messages: messagesResponse.data, conversationMembers: members, activeGroup: groupResponse.data, conversationTitle });
+                        set({ conversationMembers: members, activeGroup: groupResponse.data, conversationTitle });
 
+                        get().setMessages(messagesResponse.data)
                     })
                     .catch((error) => {
                         console.error(error);
-                        set({ messages: [], conversationMembers: {}, activeGroup: null });
+                        set({ conversationMembers: {}, activeGroup: null });
+                        get().setMessages([])
                     });
             }
         } catch (error: any) {
             console.error(error);
-            set({ messages: [] });
+            get().setMessages([])
         }
     }
 
